@@ -171,8 +171,8 @@ _whisper_models = {}
 
 
 def _transcribe(media_path, model_name, language, source_start, source_end):
-  """Devuelve [(inicio, fin, texto)] de las palabras reconocidas, en segundos
-  del archivo original."""
+  """Devuelve [(inicio, fin, texto, n_segmento)] de las palabras reconocidas,
+  en segundos del archivo original."""
   from faster_whisper import WhisperModel  # import perezoso: es pesado
 
   model = _whisper_models.get(model_name)
@@ -184,8 +184,9 @@ def _transcribe(media_path, model_name, language, source_start, source_end):
       audio, language=language, word_timestamps=True, vad_filter=True)
   # los tiempos de Whisper son relativos al tramo: se devuelven absolutos
   return [(float(source_start + w.start), float(source_start + w.end),
-           w.word.strip())
-          for seg in segments for w in (seg.words or []) if w.word.strip()]
+           w.word.strip(), i)
+          for i, seg in enumerate(segments)
+          for w in (seg.words or []) if w.word.strip()]
 
 
 def _load_audio(path, start, end, rate=16000):
@@ -211,12 +212,17 @@ def _load_audio(path, start, end, rate=16000):
   return samples[a:b]
 
 
-def _group_words(words, max_chars, max_seconds):
-  """Agrupa palabras en líneas cortas de subtítulo."""
+def _group_words(words, max_chars, max_seconds, max_gap=0.8):
+  """Agrupa palabras en líneas cortas de subtítulo.
+
+  Corta cuando la línea se pasa de largo o de duración, tras una pausa o al
+  cambiar de segmento de Whisper (frase natural).
+  """
   lines, cur = [], []
   for w in words:
     text = " ".join(x[2] for x in cur + [w])
-    if cur and (len(text) > max_chars or w[1] - cur[0][0] > max_seconds):
+    if cur and (len(text) > max_chars or w[1] - cur[0][0] > max_seconds
+                or w[0] - cur[-1][1] > max_gap or w[3] != cur[-1][3]):
       lines.append(cur)
       cur = []
     cur.append(w)
@@ -225,7 +231,15 @@ def _group_words(words, max_chars, max_seconds):
       cur = []
   if cur:
     lines.append(cur)
-  return [(ln[0][0], ln[-1][1], " ".join(x[2] for x in ln)) for ln in lines]
+  # una palabra suelta (los tiempos por palabra en canto son imprecisos) se
+  # une con la línea siguiente, salvo que sea la última
+  merged = []
+  for i, ln in enumerate(lines):
+    if len(ln) == 1 and i + 1 < len(lines):
+      lines[i + 1] = ln + lines[i + 1]
+    else:
+      merged.append(ln)
+  return [(ln[0][0], ln[-1][1], " ".join(x[2] for x in ln)) for ln in merged]
 
 
 @mcp.tool()
@@ -260,7 +274,7 @@ def concat_auto_subtitles(path: str, media_path: str,
     return {"subtitles": 0, "note": "No se detectó voz."}
 
   commands = []
-  for start, end, text in _group_words(words, max_chars, max_seconds=4.0):
+  for start, end, text in _group_words(words, max_chars, max_seconds=6.0):
     cmd = {
         "op": "addTextClip",
         "start": round(timeline_start + start - source_start, 3),
