@@ -107,3 +107,8 @@ canto no genera nada. El audio se decodifica con PyAV directamente porque
 | `refused ... outside where this API writes` | Proyecto fuera de la carpeta de usuario |
 | `No module named 'mcp.server.mcpserver'` | Paquete `mcp` 1.x: instalá `mcp>=2` |
 | Nada funciona y hay un `mcp.py` en la carpeta | Ese archivo tapa al paquete `mcp`; renombralo |
+
+## Licencia
+
+[AGPL-3.0-or-later](LICENSE), la misma que [Concat](https://github.com/jub0t/concat).
+Proyecto no oficial: no está afiliado a los autores de Concat.
