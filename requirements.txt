@@ -1,0 +1,6 @@
+mcp>=2,<3
+python-dotenv
+# Solo para concat_auto_subtitles:
+faster-whisper
+av
+numpy

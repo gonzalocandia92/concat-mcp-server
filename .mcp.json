@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "concat": {
+      "command": "python",
+      "args": ["concat_mcp.py"]
+    }
+  }
+}
